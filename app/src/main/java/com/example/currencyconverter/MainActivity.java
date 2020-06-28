@@ -11,9 +11,12 @@ import android.widget.Spinner;
 import android.widget.TextView;
 
 import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.xml.sax.InputSource;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -25,6 +28,9 @@ import java.nio.charset.Charset;
 import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.Locale;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 public class MainActivity extends AppCompatActivity {
     private Spinner FromCurrency;
@@ -62,14 +68,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void getData() throws IOException {
-        Document doc = Jsoup.connect("https://www.fxexchangerate.com/currency-converter-rss-feed.html").get();
+        org.jsoup.nodes.Document doc = Jsoup.connect("https://www.fxexchangerate.com/currency-converter-rss-feed.html").get();
         try {
             Elements rss = doc.select("div.rss");
             Elements options = rss.select("a[href]");
             countcurrency = options.size();
             arraySpinner = new String[countcurrency];
             int i = 0;
-            for(Element option : options) {
+            for(org.jsoup.nodes.Element option : options) {
                 arraySpinner[i] = option.text();
                 i++;
             }
@@ -140,13 +146,42 @@ public class MainActivity extends AppCompatActivity {
             incurrency = incurrency.split("-")[0];
             incurrency = incurrency.replaceAll("\\s+", "");
             incurrency = incurrency.toLowerCase();
-            outcurrency = outcurrency.split("-")[1];
-            String doc = readFromUrl("https://" + incurrency + ".fxexchangerate.com/rss.xml");
+            outcurrency = outcurrency.split(" - ")[1];
+            /*String doc = readFromUrl("https://" + incurrency + ".fxexchangerate.com/rss.xml");
             String value = doc.split(outcurrency)[0];
             value = value.substring(value.lastIndexOf("=")+1);
             value = value.replaceAll("\\s+", "");
-            outvalue = Double.valueOf(value) * invalue;
+            outvalue = Double.valueOf(value) * invalue;*/
+            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+            try{
+                DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+                URL url = new URL("https://" + incurrency + ".fxexchangerate.com/rss.xml");
+                Document doc = dBuilder.parse(new InputSource(url.openStream()));
+                NodeList nodeList = doc.getElementsByTagName("item");
+                for(int i = 0; i < nodeList.getLength(); i++)
+                {
+                    Element element = (Element) nodeList.item(i);
+                    String desvalue = getTagValue("description",element);
+                    desvalue = desvalue.substring(desvalue.lastIndexOf("=")+1);
+                    String value = desvalue.split("\\s+",3)[1];
+                    String cy = desvalue.split("\\s+",3)[2];
+                    if(cy.equals(outcurrency))
+                    {
+                        outvalue = Double.valueOf(value) * invalue;
+                        break;
+                    }
+                }
+            }
+            catch(Exception e){
+                e.printStackTrace();
+            }
         }
+    }
+
+    private static String getTagValue(String tag, Element element) {
+        NodeList nodeList = element.getElementsByTagName(tag).item(0).getChildNodes();
+        Node node = (Node) nodeList.item(0);
+        return node.getNodeValue();
     }
 
     private String readAll(Reader rd) throws IOException {
